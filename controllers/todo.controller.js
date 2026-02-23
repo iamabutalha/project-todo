@@ -82,14 +82,42 @@ exports.deleteTodo = async (req, res) => {
 };
 
 exports.updatePost = async (req, res) => {
-  const { postId } = req.params;
+  const { todoId } = req.params;
+  const { title } = req.body;
 
-  if (!postId) {
+  if (!todoId) {
     return res
       .status(409)
       .json({ isSuccess: false, message: "postId is required" });
   }
   try {
     // Todo
-  } catch (error) {}
+    const findTodo = await Todo.findOne({ _id: todoId });
+    if (!findTodo)
+      return res
+        .status(409)
+        .json({ isSuccess: false, message: "Post not found" });
+
+    if (findTodo.user.toString() !== req.user.id) {
+      return res
+        .status(401)
+        .json({ isSuccess: false, message: "Cannot update this post" });
+    }
+
+    const updatedPost = await Todo.findByIdAndUpdate(
+      { _id: todoId, user: req.user.id },
+      { title },
+      { new: true },
+    );
+    res.status(200).json({
+      isSuccess: false,
+      message: "Todo updated successfully",
+      todo: updatedPost,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ isSuccess: false, message: "internal sever error" });
+  }
 };
