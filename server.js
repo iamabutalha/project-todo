@@ -4,10 +4,16 @@ const cors = require("cors");
 const { authMiddleware } = require("./middlewares/auth.middleware");
 const authRouter = require("./routes/auth.route");
 const todoRouter = require("./routes/todo.route");
+const Redis = require("ioredis");
+const redisIo = require("./config/redis.js");
 
 const express = require("express");
 const app = express();
 
+// redis connection
+redisIo.on("connect", () => {
+  console.log("redis connected successfully");
+});
 connectDB();
 
 app.use(cors("*"));

@@ -1,12 +1,26 @@
 const Todo = require("../models/todo.model");
+const redisIo = require("../config/redis.js");
 
 exports.getTodos = async (req, res) => {
   const { user } = req;
+  const cacheKey = `todos:${user.id}`;
   try {
+    const cached = await redisIo.get(cacheKey);
+
+    if (cached) {
+      console.log("Serving from redis ⚡");
+      return res.json({
+        isSuccess: true,
+        todos: JSON.parse(cached),
+      });
+    }
+
     const todos = await Todo.find({ user: user.id }).populate(
       "user",
       "-password",
     );
+
+    await redisIo.set(cacheKey, JSON.stringify(todos), "EX", 60);
 
     return res.send({ isSuccess: true, todos });
   } catch (error) {
@@ -31,6 +45,8 @@ exports.createTodo = async (req, res) => {
   }
   try {
     const todo = await Todo.create({ title, description, user: user.id });
+    await redisIo.del(`todos:${user.id}`);
+
     return res.send({ isSuccess: true, todo });
   } catch (error) {
     return res
@@ -68,6 +84,8 @@ exports.deleteTodo = async (req, res) => {
         .status(404)
         .send({ isSuccess: false, message: "Post does not deleted" });
     }
+
+    await redisIo.del(`todos:${user.id}`);
 
     return res
       .status(200)
@@ -109,6 +127,8 @@ exports.updatePost = async (req, res) => {
       { title },
       { new: true },
     );
+
+    await redisIo.del(`todos:${user.id}`);
     res.status(200).json({
       isSuccess: false,
       message: "Todo updated successfully",
