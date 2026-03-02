@@ -4,17 +4,16 @@ const cors = require("cors");
 const { authMiddleware } = require("./middlewares/auth.middleware");
 const authRouter = require("./routes/auth.route");
 const todoRouter = require("./routes/todo.route");
-const Redis = require("ioredis");
-const redisIo = require("./config/redis.js");
+// const Redis = require("ioredis");
+const client = require("./config/redis.js");
 
 const express = require("express");
 const app = express();
 
 // redis connection
-redisIo.on("connect", () => {
-  console.log("redis connected successfully");
-});
-connectDB();
+// redisIo.on("connect", () => {
+//   console.log("redis connected successfully");
+// });
 
 app.use(cors("*"));
 app.use(express.json());
@@ -24,6 +23,31 @@ app.use("/api/v1/todo", authMiddleware, todoRouter);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server is up on port:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    // MongoDB
+    await connectDB();
+
+    // Redis
+    client.on("error", (err) => console.log("Redis Client Error", err));
+
+    await client.connect();
+
+    console.log("Redis connected successfully");
+
+    // Test Redis
+    await client.set("foo", "bar");
+    const result = await client.get("foo");
+    console.log(result); // bar
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server is up on port: ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Error starting server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();

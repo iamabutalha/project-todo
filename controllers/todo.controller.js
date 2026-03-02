@@ -1,11 +1,11 @@
 const Todo = require("../models/todo.model");
-const redisIo = require("../config/redis.js");
+const client = require("../config/redis.js");
 
 exports.getTodos = async (req, res) => {
   const { user } = req;
   const cacheKey = `todos:${user.id}`;
   try {
-    const cached = await redisIo.get(cacheKey);
+    const cached = await client.get(cacheKey);
 
     if (cached) {
       console.log("Serving from redis ⚡");
@@ -20,7 +20,9 @@ exports.getTodos = async (req, res) => {
       "-password",
     );
 
-    await redisIo.set(cacheKey, JSON.stringify(todos), "EX", 60);
+    await client.set(cacheKey, JSON.stringify(todos), {
+      EX: 60,
+    });
 
     return res.send({ isSuccess: true, todos });
   } catch (error) {
@@ -45,7 +47,7 @@ exports.createTodo = async (req, res) => {
   }
   try {
     const todo = await Todo.create({ title, description, user: user.id });
-    await redisIo.del(`todos:${user.id}`);
+    await client.del(`todos:${user.id}`);
 
     return res.send({ isSuccess: true, todo });
   } catch (error) {
@@ -57,6 +59,7 @@ exports.createTodo = async (req, res) => {
 
 exports.deleteTodo = async (req, res) => {
   const { todoId } = req.params;
+  const { user } = req;
 
   if (!todoId) {
     return res
@@ -85,7 +88,7 @@ exports.deleteTodo = async (req, res) => {
         .send({ isSuccess: false, message: "Post does not deleted" });
     }
 
-    await redisIo.del(`todos:${user.id}`);
+    await client.del(`todos:${user.id}`);
 
     return res
       .status(200)
@@ -102,6 +105,7 @@ exports.deleteTodo = async (req, res) => {
 exports.updatePost = async (req, res) => {
   const { todoId } = req.params;
   const { title } = req.body;
+  const { user } = req;
 
   if (!todoId) {
     return res
@@ -116,19 +120,19 @@ exports.updatePost = async (req, res) => {
         .status(409)
         .json({ isSuccess: false, message: "Post not found" });
 
-    if (findTodo.user.toString() !== req.user.id) {
+    if (findTodo.user.toString() !== req.user.id.toString()) {
       return res
         .status(401)
         .json({ isSuccess: false, message: "Cannot update this post" });
     }
 
     const updatedPost = await Todo.findByIdAndUpdate(
-      { _id: todoId, user: req.user.id },
+      todoId,
       { title },
       { new: true },
     );
 
-    await redisIo.del(`todos:${user.id}`);
+    await client.del(`todos:${user.id}`);
     res.status(200).json({
       isSuccess: false,
       message: "Todo updated successfully",
